@@ -20,6 +20,11 @@ class TestLib(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
+        '''
+        :param ev: 收到的事件
+        :return: 无
+        在配置阶段下发miss-flow流表
+        '''
         msg = ev.msg
         datapath = msg.datapath
         self.logger.info("switch {} is connected".format(datapath.id))
@@ -42,6 +47,14 @@ class TestLib(app_manager.RyuApp):
             self.ip_handler(msg, ip_pkt)
 
     def arp_handler(self, msg, arp_pkt):
+        '''
+
+        :param msg:传递给controller 的message
+        :param arp_pkt: 解析出来的arp报文
+        :return: 无
+
+        检查交换机的主机表，for循环遍历完毕如果找到了就转发，如果没有找到就做flood处理
+        '''
         datapath = msg.datapath
         parser = datapath.ofproto_parser
         in_port = msg.match["in_port"]
@@ -61,6 +74,13 @@ class TestLib(app_manager.RyuApp):
             self.flood(msg)
 
     def _build_packet_out(self, datapath, actions, data):
+        '''
+
+        :param datapath:这个packout消息要发送到的交换机
+        :param actions: 动作必须是可迭代的
+        :param data: packetout消息要封装的数据
+        :return: 无
+        '''
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         # actions = [parser.OFPActionOutput(port)]
@@ -69,6 +89,11 @@ class TestLib(app_manager.RyuApp):
         return packet_out_msg
 
     def flood(self, msg):
+        '''
+
+        :param msg:对arp请求做泛洪处理
+        :return: None
+        '''
         datapath = msg.datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
@@ -78,15 +103,30 @@ class TestLib(app_manager.RyuApp):
         datapath.send_msg(message)
 
     def add_flow(self, datapath):
+        '''
+
+        :param datapath:添加miss-flow流表的函数
+        :return: None
+        '''
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         actions = [parser.OFPActionOutput(port=ofproto.OFPP_CONTROLLER, max_len=ofproto.OFPCML_MAX)]
         self.send_flow_mod(datapath, actions, pri=0, match=parser.OFPMatch())
 
     def send_flow_mod(self, datapath, actions, pri, match, idle_time=0, hard_time=0):
-        self.logger.info("anzhuangliubiao")
-        if pri == 1:
-            self.logger.info("addliubiao")
+        '''
+        下发正常流表的函数
+        :param datapath: 要将流表发送到的交换机
+        :param actions: 动作
+        :param pri: 优先级
+        :param match: 匹配域，注意必须写上eth_type
+        :param idle_time: 空闲失效时间
+        :param hard_time: 没有合适的中文翻译。。。。
+        :return: None
+        '''
+        # self.logger.info("anzhuangliubiao")
+        # if pri == 1:
+        #     self.logger.info("addliubiao")
         parser = datapath.ofproto_parser
         ofproto = datapath.ofproto
         ins = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
@@ -96,8 +136,15 @@ class TestLib(app_manager.RyuApp):
         datapath.send_msg(message)
 
     def ip_handler(self, msg, ip_pkt):
+        '''
+
+        :param msg:
+        :param ip_pkt:
+        :return:
+        转发ip报文。注意下发流表后还要处理发送到控制器的报文，用packetout消息转发出去
+        '''
         datapath = msg.datapath
-        ofproto = datapath.ofproto
+        # ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
         src_ip = ip_pkt.src
