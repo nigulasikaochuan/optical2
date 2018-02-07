@@ -91,6 +91,6 @@ class Aware(app_manager.RyuApp):
 
         for host in hosts:
             self.HostSwitches[(host.port.dpid, host.port.port_no)] = (host.ipv4, host.mac)
-        self.logger.info(self.HostSwitches)
+        #self.logger.info(self.HostSwitches)
 
 
