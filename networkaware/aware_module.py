@@ -49,8 +49,10 @@ class Aware(app_manager.RyuApp):
 
     def _monitor(self):
         i = 0
+
         while True:
-            if i == 1000000000:
+
+            if i == 5:
                 self.topo(None)
                 i = 0
             hub.sleep(1)
@@ -68,7 +70,7 @@ class Aware(app_manager.RyuApp):
 
             dst_ip = arp_packet.dst_ip
             dst_mac = arp_packet.dst_mac
-            # self.logger.info("交换机{}发出arp，目的ip{},目的mac{}".format(datapath.id, dst_ip, dst_mac))
+            self.logger.info("交换机{}发出arp，目的ip{},目的mac{}".format(datapath.id, dst_ip, dst_mac))
             # self.logger.info("已知的主机列表为{}".format(self.HostSwitches))
             for (sw, sw_port), (host_ip, host_mac) in self.HostSwitches.items():
                 # self.logger.info("for ")
@@ -79,6 +81,8 @@ class Aware(app_manager.RyuApp):
             else:
 
                 self.flood_arp(msg)
+        # if self.HostSwitches:
+        #     self.logger.info("{}".format(self.HostSwitches))
 
     @set_ev_cls(EventToListened)
     def topo(self, ev):
@@ -141,7 +145,7 @@ class Aware(app_manager.RyuApp):
         datapath = self.datapaths[sw]
         # ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-        self.logger.info("arp forward 发送到交换机{}的端口{}".format(datapath.id,sw_port))
+        # self.logger.info("arp forward 发送到交换机{}的端口{}".format(datapath.id,sw_port))
         actions = [parser.OFPActionOutput(sw_port)]
         arp_message = _build_packet_out(datapath, actions, msg.data)
         datapath.send_msg(arp_message)
@@ -149,7 +153,7 @@ class Aware(app_manager.RyuApp):
     def flood_arp(self, msg):
         # 发送packet_in 的交换机
         # parser = datapath.ofproto_parser
-        self.logger.info("flooding arp message")
+        # self.logger.info("flooding arp message")
         for dpid, ports in self.port_of_switches_remained.items():
             datapath = self.datapaths[dpid]
             parser = datapath.ofproto_parser

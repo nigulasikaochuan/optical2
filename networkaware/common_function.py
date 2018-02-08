@@ -11,6 +11,26 @@ def add_miss_flow(datapath):
     send_flow_mod(datapath, actions, pri=0, match=parser.OFPMatch())
 
 
+def _build_packet_out_2(datapath,buffer_id,dst_port, data):
+    """
+            Build packet out object.
+    """
+    ofproto = datapath.ofproto
+    actions = []
+    if dst_port:
+        actions.append(datapath.ofproto_parser.OFPActionOutput(dst_port))
+
+        msg_data = None
+        if buffer_id == datapath.ofproto.OFP_NO_BUFFER:
+            if data is None:
+                return None
+            msg_data = data
+        #packet_out 的 inport有什么用。。。。
+
+        out = datapath.ofproto_parser.OFPPacketOut(
+            datapath=datapath, buffer_id=buffer_id,
+            data=msg_data, in_port=ofproto.OFPP_CONTROLLER, actions=actions)
+        return out
 
 
 def _build_packet_out(datapath, actions, data):
@@ -30,6 +50,7 @@ def _build_packet_out(datapath, actions, data):
     packet_out_msg = parser.OFPPacketOut(datapath=datapath, buffer_id=ofproto.OFP_NO_BUFFER,
                                              in_port=ofproto.OFPP_CONTROLLER, actions=actions, data=data)
     return packet_out_msg
+
 def send_flow_mod(datapath, actions, pri, match, idle_time=0, hard_time=0):
     '''
     下发正常流表的函数
