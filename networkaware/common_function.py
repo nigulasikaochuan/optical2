@@ -1,4 +1,9 @@
 def add_miss_flow(datapath):
+    '''
+    用来下发miss-flow流表项目
+    :param datapath:
+    :return:
+    '''
 
     ofproto = datapath.ofproto
     parser = datapath.ofproto_parser
@@ -15,6 +20,8 @@ def _build_packet_out(datapath, actions, data):
           :param actions: 动作必须是可迭代的
           :param data: packetout消息要封装的数据
           :return: 无
+
+          构造packet_out报文
     '''
 
     ofproto = datapath.ofproto
@@ -27,11 +34,11 @@ def send_flow_mod(datapath, actions, pri, match, idle_time=0, hard_time=0):
     '''
     下发正常流表的函数
     :param datapath: 要将流表发送到的交换机
-    :param actions: 动作
-    :param pri: 优先级
-    :param match: 匹配域，注意必须写上eth_type
-    :param idle_time: 空闲失效时间
-    :param hard_time: 没有合适的中文翻译。。。。
+    :param actions: instructions将要执行的动作
+    :param pri: 这个流表的优先级
+    :param match: 流表的匹配域
+    :param idle_time: 空闲失效时间 默认为0 表示一直不失效
+    :param hard_time: 没有合适的中文翻译。
     :return: None
     '''
     # self.logger.info("anzhuangliubiao")

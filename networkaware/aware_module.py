@@ -1,3 +1,4 @@
+#拓扑发现用的application
 from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, set_ev_cls, MAIN_DISPATCHER
@@ -67,14 +68,14 @@ class Aware(app_manager.RyuApp):
 
             dst_ip = arp_packet.dst_ip
             dst_mac = arp_packet.dst_mac
-            self.logger.info("交换机{}发出arp，目的ip{},目的mac{}".format(datapath.id, dst_ip, dst_mac))
+            # self.logger.info("交换机{}发出arp，目的ip{},目的mac{}".format(datapath.id, dst_ip, dst_mac))
             # self.logger.info("已知的主机列表为{}".format(self.HostSwitches))
             for (sw, sw_port), (host_ip, host_mac) in self.HostSwitches.items():
                 # self.logger.info("for ")
                 if host_ip == dst_ip:
                     self.arp_forward(sw, sw_port, msg)
                     break
-            # 正常循环结束了，都没进行arp转发，说明目标主机不可知，将arp包发送的交换机的所有剩余端口
+            # 正常循环结束了，都没进行arp转发，说明目标主机不可知，将arp包发送到交换机的所有剩余端口
             else:
 
                 self.flood_arp(msg)
