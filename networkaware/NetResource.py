@@ -34,16 +34,15 @@ class NetResource(app_manager.RyuApp):
     def _monitor(self):
         i = 0
         flag = False
+        self._creat_graph()
+
         while True:
             if not flag:
                 if self.graph:
+                    self.logger.info("创建图完毕")
                     flag = True
-                    # self.logger.info("创建完毕")
             if i == 5:
                 self._creat_graph()
-                # # self.logger.info("{}".format(self.k_shortest_paths(1, 4, k=3)))
-                # # self.logger.info("{}".format(self.k_shortest_paths(4, 1, k=3)))
-                # # self.logger.info("{}".format(self.weight))
                 i = 0
             hub.sleep(1)
             i += 1
@@ -73,18 +72,12 @@ class NetResource(app_manager.RyuApp):
         '''
         for src_sw in self.topo.switches:
             for dst_sw in self.topo.switches:
-                # # self.logger.info("src{},dst{}".format(src_sw.dp.id, dst_sw.dp.id))
                 if src_sw.dp.id == dst_sw.dp.id:
-                    # # self.logger.info("src,dst相等")
                     self.graph.add_edge(src_sw.dp.id, dst_sw.dp.id, weight=0)
                     continue
                 if (src_sw.dp.id, dst_sw.dp.id) in self.topo.LinkBetweenSwitches:
-                    # # self.logger.info("源节点是：{} 目标节点是：{}".format(src_sw.dp.id, dst_sw.dp.id))
                     weight = self.weight.get((src_sw.dp.id, dst_sw.dp.id))
                     self.graph.add_edge(src_sw.dp.id, dst_sw.dp.id, weight=weight)
-        # for key in self.graph.adjacency():
-        #     # self.logger.info(key)
-        # # self.logger.info("{}".format((list(self.graph.adjacency()))))
 
     def k_shortest_paths(self, src, dst, weight='weight', k=1):
         """
@@ -101,20 +94,16 @@ class NetResource(app_manager.RyuApp):
                 k -= 1
             return shortest_paths
         except:
-            # self.logger.info(self.graph)
             self.logger.debug("No path between %s and %s" % (src, dst))
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def packet_in_handler(self, ev):
         msg = ev.msg
         datapath = msg.datapath
-        ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
-
         pkt = packet.Packet(msg.data)
         ip_pkt = pkt.get_protocol(ipv4.ipv4)
         if ip_pkt:
-            # self.logger.info("ipv4 processing")
+            self.logger.info("ipv4 processing")
             self.shortest_forward(msg, ip_pkt, pkt)
         else:
             return
@@ -128,36 +117,36 @@ class NetResource(app_manager.RyuApp):
         packet_in_datapath = msg.datapath
         packet_in_port = msg.match['in_port']
         e_type = pkt.get_protocol(ethernet.ethernet).ethertype
-        # self.logger.info("发送ip包的是交换机{}：源ip地址是{}，目的ip地址是{}".format(packet_in_datapath.id, ip_src, ip_dst))
+        self.logger.info("发送ip包的是交换机{}：源ip地址是{}，目的ip地址是{}".format(packet_in_datapath.id, ip_src, ip_dst))
         hub.sleep(0.001)
-        # # self.logger.info(self.topo.HostSwitches)
         for (sw_id, sw_port), (host_ip, host_mac) in self.topo.HostSwitches.items():
             if ip_src == host_ip:
                 src_id = sw_id
-                # src_port = sw_port
             if ip_dst == host_ip:
                 dst_id = sw_id
-                # dst_port = sw_port
             if src_id is not None and dst_id is not None:
                 break
         if src_id != packet_in_datapath.id:
-            # self.logger.info("还给交换机")
-            parser = packet_in_datapath.ofproto_parser
+            '''
+                源ip地址的switch id 和 packe_in 报文的switch id 不一样，直接还给交换机进行重新匹配
+            '''
+            self.logger.info("src_id is {}".format(src_id))
+            self.logger.info("应该还给交换机{}，从这个交换机的port{}输入的".format(packet_in_datapath.id, msg.match['in_port']))
             ofproto = packet_in_datapath.ofproto
-            actions = [parser.OFPActionOutput(ofproto.OFPP_TABLE)]
-            self.send_packet_out(packet_in_datapath,msg.buffer_id,None,msg.data)
-            # msg2 = self._build_packet_out(packet_in_datapath, msg.data, actions, msg.match['in_port'])
-            # msg.datapath.send_msg(msg2)
-            return
-        if src_id is not None and dst_id is not None:
-            # self.assigment_slot(src_id, dst_id)
+            parser = packet_in_datapath.ofproto_parser
             # hub.sleep(0.001)
+            actions = [parser.OFPActionOutput(port=ofproto.OFPP_TABLE)]
+            packet_out = self._build_packet_out(packet_in_datapath, actions=actions, data=msg.data,
+                                                inport=msg.match['in_port'])
+            packet_in_datapath.send_msg(packet_out)
+            return
+
+        if src_id is not None and dst_id is not None:
             paths = self.k_shortest_paths(src_id, dst_id, weight='weight', k=3)
             if paths:
                 flow_information = [e_type, ip_src, ip_dst, packet_in_port]
-                # # self.logger.info(flow_information)
+                self.logger.info("报文的信息是，以太网类型为{}，源{}目的{}，入端口{}".format(e_type, ip_src, ip_dst, packet_in_port))
                 self.install_flow(datapaths, paths[0], flow_information, msg.buffer_id, data=msg.data)
-                # self.logger.info("{}".format(msg.buffer_id))
             else:
                 self.logger.info("path 不可知")
         else:
@@ -169,15 +158,11 @@ class NetResource(app_manager.RyuApp):
     def install_flow(self, datapaths, path, flow_info, buffer_id, data=None):
         self.logger.info("install flow to path{}".format(path))
         if path is None or len(path) == 0:
-            # self.logger.info("Path error!")
+            self.logger.info("Path error!")
             return
         in_port = flow_info[3]
         first_dp = datapaths[path[0]]
-        self.logger.info("{}".format(first_dp))
-        # out_port = first_dp.ofproto.OFPP_LOCAL
         back_info = (flow_info[0], flow_info[2], flow_info[1])
-
-        # inter_link
         if len(path) > 2:
             for i in range(1, len(path) - 1):
                 port = self.get_port_pair_from_link(path[i - 1], path[i])
@@ -187,27 +172,26 @@ class NetResource(app_manager.RyuApp):
                     datapath = datapaths[path[i]]
                     self.send_ipv4_flow(datapath, flow_info, src_port, dst_port)
                     self.send_ipv4_flow(datapath, back_info, dst_port, src_port)
-                    # self.logger.info("inter_link flow install to dp{}".format(datapath.id))
+                    self.logger.info("inter_link flow install to dp{}".format(datapath.id))
         if len(path) > 1:
             # the last flow entry: tor -> host
-            self.logger.info("{}{}".format(path[-2],path[-1]))
             port_pair = self.get_port_pair_from_link(path[-2], path[-1])
 
             self.logger.info("{}".format(port_pair))
 
             if port_pair is None:
-                # self.logger.info("Port is not found")
+                self.logger.info("Port is not found")
                 return
             src_port = port_pair[1]
 
             dst_port = self.get_port(flow_info[2])
             if dst_port is None:
-                # self.logger.info("Last port is not found.")
+                self.logger.info("Last port is not found.")
                 return
             else:
-                self.logger.info("src{} dst{}".format(src_port, dst_port))
+                self.logger.info("最后一个交换机的流表项src{} dst{}".format(src_port, dst_port))
             last_dp = datapaths[path[-1]]
-            # self.logger.info("  flow install to dp{}".format(last_dp.id))
+            self.logger.info("  flow install to dp{}".format(last_dp.id))
             self.send_ipv4_flow(last_dp, flow_info, src_port, dst_port)
             self.send_ipv4_flow(last_dp, back_info, dst_port, src_port)
 
@@ -215,16 +199,16 @@ class NetResource(app_manager.RyuApp):
             port_pair = self.get_port_pair_from_link(path[0], path[1])
             # self.logger.info("{}".format(port_pair))
             if port_pair is None:
-                # self.logger.info("Port not found in first hop.")
+                self.logger.info("Port not found in first hop.")
                 return
 
             out_port = port_pair[0]
-            self.logger.info("di yige in{}".format(in_port))
-            # self.logger.info("flow install to dp{}".format(first_dp.id))
+            self.logger.info("ip报文从第一个交换机的端口{}进入".format(in_port))
+            self.logger.info("flow install to dp{}".format(first_dp.id))
             self.send_ipv4_flow(first_dp, flow_info, in_port, out_port)
             self.send_ipv4_flow(first_dp, back_info, out_port, in_port)
 
-            self.send_packet_out(first_dp, buffer_id, out_port, data, inport=in_port)
+            self.send_packet_out(first_dp, buffer_id, out_port, data, )
 
         # src and dst on the same datapath
         else:
@@ -238,6 +222,14 @@ class NetResource(app_manager.RyuApp):
             self.send_ipv4_flow(first_dp, flow_info, in_port, out_port)
             self.send_ipv4_flow(first_dp, back_info, out_port, in_port)
             self.send_packet_out(first_dp, buffer_id, out_port, data)
+
+    def send_packet_out(self, datapath, buffer_id, out_port, data):
+        ofproto = datapath.ofproto
+        self.logger.info("从交换机{}把ip报文转发到端口{}".format(datapath.id, out_port))
+        parser = datapath.ofproto_parser
+        actions = [parser.OFPActionOutput(port=out_port)]
+        packet_out = self._build_packet_out(datapath, actions=actions, data=data)
+        datapath.send_msg(packet_out)
 
     def send_ipv4_flow(self, datapath, flow_info, src_port, dst_port):
         """
@@ -254,15 +246,9 @@ class NetResource(app_manager.RyuApp):
         send_flow_mod(datapath, actions, 1, match,
                       idle_time=40, hard_time=60)
 
-    def assigment_slot(self, src_id, dst_id):
-        pass
-
-    def send_packet_out(self, datapath, buffer_id, out_port, data, inport=None):
-        self.logger.info("inport{}".format(inport))
-        self.logger.info("switch:{} output_port{}".format(datapath.id, out_port))
-        actions = [datapath.ofproto_parser.OFPActionOutput(datapath.ofproto.OFPP_TABLE)]
-        msg = self._build_packet_out(datapath, actions=actions, data=data, inport=inport)
-        datapath.send_msg(msg)
+    # def assigment_slot(self, src_id, dst_id):
+    #     pass
+    #
 
     def get_port(self, host_ip_):
         # # self.logger.info("{}".format(self.topo.HostSwitches))

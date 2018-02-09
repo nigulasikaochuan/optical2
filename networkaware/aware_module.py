@@ -1,4 +1,4 @@
-#拓扑发现用的application
+# 拓扑发现用的application
 from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, set_ev_cls, MAIN_DISPATCHER
@@ -70,7 +70,7 @@ class Aware(app_manager.RyuApp):
 
             dst_ip = arp_packet.dst_ip
             dst_mac = arp_packet.dst_mac
-            self.logger.info("交换机{}发出arp，目的ip{},目的mac{}".format(datapath.id, dst_ip, dst_mac))
+            # self.logger.info("交换机{}发出arp，目的ip{},目的mac{}".format(datapath.id, dst_ip, dst_mac))
             # self.logger.info("已知的主机列表为{}".format(self.HostSwitches))
             for (sw, sw_port), (host_ip, host_mac) in self.HostSwitches.items():
                 # self.logger.info("for ")

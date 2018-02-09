@@ -166,7 +166,7 @@ class TestLib(app_manager.RyuApp):
             self.send_flow_mod(datapath, actions=actions, pri=1, match=match, idle_time=60, hard_time=0)
 
             # 下发流表之后还要处理这一个数据包，从端口转发出去就行了
-
+            actions = [parser.OFPActionOutput(port=datapath.ofproto.OFPP_TABLE)]
             packet_out_message = self._build_packet_out(datapath, actions=actions, data=msg.data)
             datapath.send_msg(packet_out_message)
         except Exception as e:
