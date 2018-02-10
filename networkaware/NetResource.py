@@ -28,7 +28,7 @@ class NetResource(app_manager.RyuApp):
                        self.distance_between_nodes}
 
         self.monitor = hub.spawn(self._monitor)
-
+        self.pre_graph = nx.DiGraph()
         self.graph = nx.DiGraph()  # 节点用switch的dpid表示
 
     def _monitor(self):
@@ -43,6 +43,7 @@ class NetResource(app_manager.RyuApp):
                     flag = True
             if i == 5:
                 self._creat_graph()
+                self.show_topology()
                 i = 0
             hub.sleep(1)
             i += 1
@@ -70,14 +71,15 @@ class NetResource(app_manager.RyuApp):
             self.HostSwitches = {}  # (sw.dpid,port)---->host_ip,host_mac
         :return:
         '''
-        for src_sw in self.topo.switches:
-            for dst_sw in self.topo.switches:
-                if src_sw.dp.id == dst_sw.dp.id:
-                    self.graph.add_edge(src_sw.dp.id, dst_sw.dp.id, weight=0)
-                    continue
-                if (src_sw.dp.id, dst_sw.dp.id) in self.topo.LinkBetweenSwitches:
-                    weight = self.weight.get((src_sw.dp.id, dst_sw.dp.id))
-                    self.graph.add_edge(src_sw.dp.id, dst_sw.dp.id, weight=weight)
+        if self.topo.switches:
+            for src_sw in self.topo.switches:
+                for dst_sw in self.topo.switches:
+                    if src_sw.dp.id == dst_sw.dp.id:
+                        self.graph.add_edge(src_sw.dp.id, dst_sw.dp.id, weight=0)
+                        continue
+                    if (src_sw.dp.id, dst_sw.dp.id) in self.topo.LinkBetweenSwitches:
+                        weight = self.weight.get((src_sw.dp.id, dst_sw.dp.id))
+                        self.graph.add_edge(src_sw.dp.id, dst_sw.dp.id, weight=weight)
 
     def k_shortest_paths(self, src, dst, weight='weight', k=1):
         """
@@ -130,7 +132,7 @@ class NetResource(app_manager.RyuApp):
             '''
                 源ip地址的switch id 和 packe_in 报文的switch id 不一样，直接还给交换机进行重新匹配
             '''
-            self.logger.info("src_id is {}".format(src_id))
+            # self.logger.info("src_id is {}".format(src_id))
             self.logger.info("应该还给交换机{}，从这个交换机的port{}输入的".format(packet_in_datapath.id, msg.match['in_port']))
             ofproto = packet_in_datapath.ofproto
             parser = packet_in_datapath.ofproto_parser
@@ -145,7 +147,7 @@ class NetResource(app_manager.RyuApp):
             paths = self.k_shortest_paths(src_id, dst_id, weight='weight', k=3)
             if paths:
                 flow_information = [e_type, ip_src, ip_dst, packet_in_port]
-                self.logger.info("报文的信息是，以太网类型为{}，源{}目的{}，入端口{}".format(e_type, ip_src, ip_dst, packet_in_port))
+                # self.logger.info("报文的信息是，以太网类型为{}，源{}目的{}，入端口{}".format(e_type, ip_src, ip_dst, packet_in_port))
                 self.install_flow(datapaths, paths[0], flow_information, msg.buffer_id, data=msg.data)
             else:
                 self.logger.info("path 不可知")
@@ -172,12 +174,12 @@ class NetResource(app_manager.RyuApp):
                     datapath = datapaths[path[i]]
                     self.send_ipv4_flow(datapath, flow_info, src_port, dst_port)
                     self.send_ipv4_flow(datapath, back_info, dst_port, src_port)
-                    self.logger.info("inter_link flow install to dp{}".format(datapath.id))
+                    # self.logger.info("inter_link flow install to dp{}".format(datapath.id))
         if len(path) > 1:
             # the last flow entry: tor -> host
             port_pair = self.get_port_pair_from_link(path[-2], path[-1])
 
-            self.logger.info("{}".format(port_pair))
+            # self.logger.info("{}".format(port_pair))
 
             if port_pair is None:
                 self.logger.info("Port is not found")
@@ -188,10 +190,9 @@ class NetResource(app_manager.RyuApp):
             if dst_port is None:
                 self.logger.info("Last port is not found.")
                 return
-            else:
-                self.logger.info("最后一个交换机的流表项src{} dst{}".format(src_port, dst_port))
+
             last_dp = datapaths[path[-1]]
-            self.logger.info("  flow install to dp{}".format(last_dp.id))
+            # self.logger.info("  flow install to dp{}".format(last_dp.id))
             self.send_ipv4_flow(last_dp, flow_info, src_port, dst_port)
             self.send_ipv4_flow(last_dp, back_info, dst_port, src_port)
 
@@ -203,8 +204,8 @@ class NetResource(app_manager.RyuApp):
                 return
 
             out_port = port_pair[0]
-            self.logger.info("ip报文从第一个交换机的端口{}进入".format(in_port))
-            self.logger.info("flow install to dp{}".format(first_dp.id))
+            # self.logger.info("ip报文从第一个交换机的端口{}进入".format(in_port))
+            # self.logger.info("flow install to dp{}".format(first_dp.id))
             self.send_ipv4_flow(first_dp, flow_info, in_port, out_port)
             self.send_ipv4_flow(first_dp, back_info, out_port, in_port)
 
@@ -224,7 +225,7 @@ class NetResource(app_manager.RyuApp):
             self.send_packet_out(first_dp, buffer_id, out_port, data)
 
     def send_packet_out(self, datapath, buffer_id, out_port, data):
-        ofproto = datapath.ofproto
+        # ofproto = datapath.ofproto
         self.logger.info("从交换机{}把ip报文转发到端口{}".format(datapath.id, out_port))
         parser = datapath.ofproto_parser
         actions = [parser.OFPActionOutput(port=out_port)]
@@ -283,4 +284,47 @@ class NetResource(app_manager.RyuApp):
                                                  in_port=inport, actions=actions, data=data)
         return packet_out_msg
 
-# from ryu.ofproto.ofproto_v1_3_parser import OFPPacketOut
+    # from ryu.ofproto.ofproto_v1_3_parser import OFPPacketOut
+    def show_topology(self):
+        import copy
+
+        switch_num = len(list(self.graph.nodes()))
+        if self.pre_graph != self.graph:
+            # self.logger.info("{}".format(self.graph))
+            print("---------------------Topo Link---------------------")
+            # print('%10s' % ("switch"), end=' ')
+            # for i in self.graph.nodes():
+            #     print('%10d' % i, end=' ')
+            # print("")
+            for i in self.graph.nodes():
+                # print('%10d' % i, end=' ')
+                for i_j,j in self.graph[i].items():
+                    print('{}---->{} weight{} '.format(i, i_j, j['weight']), end=' ')
+                print("")
+            self.pre_graph = copy.deepcopy(self.graph)
+
+        # if self.pre_link_to_port != self.link_to_port :
+        #     print("---------------------Link Port---------------------")
+        #     print('%10s' % ("switch"), end=' ')
+        #     for i in self.graph.nodes():
+        #         print('%10d' % i, end=' ')
+        #     print("")
+        #     for i in self.graph.nodes():
+        #         print('%10d' % i, end=' ')
+        #         for j in self.graph.nodes():
+        #             if (i, j) in self.link_to_port.keys():
+        #                 print('%10s' % str(self.link_to_port[(i, j)]), end=' ')
+        #             else:
+        #                 print('%10s' % "No-link", end=' ')
+        #         print("")
+        #     self.pre_link_to_port = copy.deepcopy(self.link_to_port)
+        #
+        # if self.pre_access_table != self.access_table and setting.TOSHOW:
+        #     print("----------------Access Host-------------------")
+        #     print('%10s' % ("switch"), '%12s' % "Host")
+        #     if not self.access_table.keys():
+        #         print("    NO found host")
+        #     else:
+        #         for tup in self.access_table:
+        #             print('%10d:    ' % tup[0], self.access_table[tup])
+        #     self.pre_access_table = copy.deepcopy(self.access_table)

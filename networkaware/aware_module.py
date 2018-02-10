@@ -36,11 +36,7 @@ class Aware(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
-        '''
-        :param ev: 收到的事件
-        :return: 无
-        在配置阶段下发miss-flow流表
-        '''
+
         msg = ev.msg
         datapath = msg.datapath
         self.logger.info("switch {} is connected".format(datapath.id))
@@ -161,3 +157,5 @@ class Aware(app_manager.RyuApp):
                 actions = [parser.OFPActionOutput(port)]
                 packet_arp = _build_packet_out(datapath, actions, msg.data)
                 datapath.send_msg(packet_arp)
+
+
